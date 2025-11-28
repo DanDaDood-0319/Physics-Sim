@@ -49,14 +49,17 @@ class spring: # for all spring objects
   def __init__ (self, ball_1, ball_2, length, stiff, damp, color):
     self.ball_1 = ball_1
     self.ball_2 = ball_2
+    self.length = length
     self.stiff = stiff
     self.damp = damp
     self.color = color
   def __str__(self):
     return("".join((
-      "pos=(", str(self.pos),
-      "), rot=(", str(self.rot),
-      "), fric=(", str(self.fric),
+      "ball_1=(", str(self.ball_1),
+      "), ball_2=(", str(self.ball_2),
+      "), length=(", str(self.length),
+      "), stiff=(", str(self.stiff),
+      "), damp=(", str(self.damp),
       "),- color=(", str(self.color), ")")))
 
 
@@ -67,21 +70,24 @@ def my_dot(pos, rot):
   return(pos.dot(vec_rot(rot)))
 
 def scr_to_wrld(pos):
-  global c_p, c_z, s_s2
-  return(((pos - s_s2) / c_z) + c_p)
+    global c_p, c_z, s_s2
+    pos -= s_s2
+    pos = pg.Vector2(pos.x, -pos.y) / c_z
+    return(pos + c_p)
 
 def wrld_to_scr(pos):
-  global c_p, c_z, s_s2
-  return(((pos - c_p) * c_z) + s_s2)
+    global c_p, c_z, s_s2
+    pos = (pos - c_p) * c_z
+    pos = pg.Vector2(pos.x, -pos.y)
+    return(pos + s_s2)
 
 import math as m
 import pygame as pg
 
 def draw_half_plane(display, color, angle, position):
-
   global c_p, c_z, s_s2
   normal_x = m.cos(angle)
-  normal_y = -m.sin(angle)
+  normal_y = m.sin(angle)
   normal_vector = pg.Vector2(normal_x, normal_y)
   screen_width = display.get_width()
   screen_height = display.get_height()
@@ -137,19 +143,20 @@ planes = []
 springs = []
 
 # add elements HERE
-balls.append(ball((5, 20), (0, 0), 5, 0.5, 0, 0, 0.5, (255,0,0)))
-balls.append(ball((10, 100), (0, 0), 2.5, 1, 0, 0, 0.5, (0,128,255)))
+balls.append(ball((5, 20), (0, 0), 5, 0.5, 0, 0, 0.5, (255, 128, 0)))
+balls.append(ball((10, 100), (0, 0), 2.5, 1, 0, 0, 0.5, (0, 128, 255)))
 planes.append(plane((0, 0), 95, 0, (255, 0, 128)))
 planes.append(plane((-100, 0), 0, 0, (255, 0, 0)))
-springs.append(springs(0, 1, 20, 0.8, 0.8, 0, (255, 0, 0)))
+springs.append(spring(0, 1, 20, 0.8, 0.8, (0, 0, 0)))
 
 while run:
-  # initialialize stuff
+  # initialize stuff
   delta = runtime.tick(60)
   s_s = pg.Vector2(screen.get_size())
   s_s2 = s_s/2
   screen.fill(stage_color)
   m_pos = pg.Vector2(pg.mouse.get_pos()) - s_s2
+  m_pos = pg.Vector2(m_pos.x, -m_pos.y)
 
   # zoom
   opr = c_p + (m_pos / c_z)
@@ -158,10 +165,7 @@ while run:
 
   for plane in planes:
     draw_half_plane(screen, plane.color, m.radians(plane.rot), plane.pos)
-
-  for spring in springs:
-    L = spring.ball_1 - spring.ball_2
-
+  
   # ball render
   for ball in balls:
     ball.mass = ((ball.r ** 2) * m.pi) * ball.fmass
@@ -175,7 +179,6 @@ while run:
           ball.vel -= bfp * ball.vel.dot(plane_vec) * plane_vec
           ball.pos -= plane_vec * dot
       for hit_ball in balls:
-        
         if ball == hit_ball:
           continue
         else:
@@ -196,11 +199,25 @@ while run:
             J = j * normal
 
             ball.vel += J / ball.mass 
-            hit_ball.vel -= J / hit_ball.mass 
+            hit_ball.vel -= J / hit_ball.mass
+      for spring in springs:
+        ball_1 = balls[spring.ball_1]
+        ball_2 = balls[spring.ball_2]
+        L = ball_1.pos - ball_2.pos
+        if L.length() == 0:
+          continue
+        n = L.normalize()
+        force = (-spring.stiff * (L.length() - spring.length)) + (-spring.damp * (ball_1.vel - ball_2.vel).dot(n))
+        force *=  n
+        ball_1.vel += (force / ball_1.mass) / precision
+        ball_2.vel -= (force / ball_2.mass) / precision
       ball.vel += gravity / precision
       ball.vel *= air_res ** (1 / precision)
-    pg.draw.circle(screen, ball.color, wrld_to_scr((ball.pos.x, -ball.pos.y)), ball.r * c_z)
-  
+    pg.draw.circle(screen, ball.color, wrld_to_scr(ball.pos), ball.r * c_z)
+
+  for spring in springs:
+    pg.draw.line(screen, spring.color, wrld_to_scr(balls[spring.ball_1].pos), wrld_to_scr(balls[spring.ball_2].pos), 5)
+
   pg.display.update()
 
   scroll = 0
@@ -216,12 +233,13 @@ while run:
   if pg.mouse.get_pressed()[0]:
     if drag == 0:
       pg.mouse.get_rel()
-      drag = 1
+      drag = -1
     else:
       c_vel = pg.Vector2(pg.mouse.get_rel())
+      c_vel = pg.Vector2(c_vel.x, -c_vel.y)
       c_p -= (c_vel / c_z)
   else:
-    c_vel *= c_ps**delta 
+    c_vel *= c_ps ** delta 
     c_p -= c_vel / c_z
     drag = 0
 pg.quit()
