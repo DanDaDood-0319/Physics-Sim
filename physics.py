@@ -114,6 +114,9 @@ def draw_half_plane(display, color, angle, position):
     polygon_screen = [wrld_to_scr(point) for point in polygon_world]
     pg.draw.polygon(display, color, polygon_screen)
 
+def flip_y(pos):
+  return(pg.Vector2(pos.x, -pos.y))
+
 # initialization
 
 scroll = 0 # scroll. is event.y 
@@ -155,8 +158,7 @@ while run:
   s_s = pg.Vector2(screen.get_size())
   s_s2 = s_s/2
   screen.fill(stage_color)
-  m_pos = pg.Vector2(pg.mouse.get_pos()) - s_s2
-  m_pos = pg.Vector2(m_pos.x, -m_pos.y)
+  m_pos = flip_y(pg.Vector2(pg.mouse.get_pos()) - s_s2)
 
   # zoom
   opr = c_p + (m_pos / c_z)
@@ -235,8 +237,7 @@ while run:
       pg.mouse.get_rel()
       drag = -1
     else:
-      c_vel = pg.Vector2(pg.mouse.get_rel())
-      c_vel = pg.Vector2(c_vel.x, -c_vel.y)
+      c_vel = flip_y(pg.Vector2(pg.mouse.get_rel()))
       c_p -= (c_vel / c_z)
   else:
     c_vel *= c_ps ** delta 
